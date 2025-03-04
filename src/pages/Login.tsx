@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Lock, Mail, User, Eye, EyeOff } from 'lucide-react';
+import { Shield, Lock, Mail, User, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -163,9 +163,16 @@ const Login = () => {
               <Button 
                 type="submit" 
                 className="w-full py-6"
-                isLoading={isLoading}
+                disabled={isLoading}
               >
-                {authMode === 'login' ? 'Sign In' : 'Create Account'}
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {authMode === 'login' ? 'Signing In...' : 'Creating Account...'}
+                  </>
+                ) : (
+                  authMode === 'login' ? 'Sign In' : 'Create Account'
+                )}
               </Button>
             </form>
 

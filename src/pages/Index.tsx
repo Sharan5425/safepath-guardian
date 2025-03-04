@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Shield, MapPin, Users, UserCircle, ArrowRight, Bell, ShieldAlert, LogIn } from 'lucide-react';
@@ -148,9 +149,8 @@ const Index = () => {
                 </p>
               </div>
               <Button 
-                variant="glass" 
+                variant="secondary" 
                 className="px-6 py-3 bg-white text-primary hover:bg-white/90"
-                animation="pulse"
               >
                 <Shield className="mr-2 w-5 h-5" />
                 <span>Activate Emergency Mode</span>
