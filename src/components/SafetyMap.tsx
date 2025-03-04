@@ -1,31 +1,89 @@
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { ShieldCheck, AlertTriangle, Navigation, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { GoogleMap, useJsApiLoader, Marker, Circle } from '@react-google-maps/api';
+
+// Map container style
+const containerStyle = {
+  width: '100%',
+  height: '100%',
+  borderRadius: '0.75rem'
+};
+
+// Default center position
+const center = {
+  lat: 37.7749,
+  lng: -122.4194
+};
+
+// Map options
+const options = {
+  disableDefaultUI: true,
+  zoomControl: true,
+  mapTypeControl: false,
+  streetViewControl: false,
+  fullscreenControl: true,
+  styles: [
+    {
+      featureType: 'poi',
+      elementType: 'labels',
+      stylers: [{ visibility: 'off' }]
+    }
+  ]
+};
 
 const SafetyMap = () => {
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [mapApiKey, setMapApiKey] = useState<string>('');
+  const [mapReady, setMapReady] = useState(false);
   const [selectedArea, setSelectedArea] = useState<string | null>(null);
   const [safetyRating, setSafetyRating] = useState<number>(0);
+  const [location, setLocation] = useState(center);
+  const [map, setMap] = useState<google.maps.Map | null>(null);
   
-  // Simulate loading time
+  // Setup Google Maps API loader
+  const { isLoaded } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: mapApiKey || ''
+  });
+
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-      // Simulate safety rating calculation
-      setSafetyRating(Math.floor(Math.random() * 100));
-    }, 2000);
+    // Try to get user's location
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          });
+        },
+        () => {
+          console.log("User denied geolocation or it's not available");
+        }
+      );
+    }
     
-    return () => clearTimeout(timer);
+    // Simulate safety rating calculation
+    setSafetyRating(Math.floor(Math.random() * 100));
+  }, []);
+
+  // Handle map load 
+  const onLoad = useCallback((map: google.maps.Map) => {
+    setMap(map);
+    setMapReady(true);
+  }, []);
+
+  // Handle map unmount
+  const onUnmount = useCallback(() => {
+    setMap(null);
   }, []);
 
   // Simulated safety areas (in a real app, these would come from API data)
   const safetyAreas = [
-    { id: '1', name: 'Downtown', rating: 85 },
-    { id: '2', name: 'Riverside Park', rating: 72 },
-    { id: '3', name: 'University Area', rating: 92 },
-    { id: '4', name: 'Shopping District', rating: 78 },
+    { id: '1', name: 'Downtown', rating: 85, position: { lat: 37.7749, lng: -122.4194 }, radius: 1000 },
+    { id: '2', name: 'Riverside Park', rating: 72, position: { lat: 37.7699, lng: -122.4330 }, radius: 800 },
+    { id: '3', name: 'University Area', rating: 92, position: { lat: 37.7857, lng: -122.4071 }, radius: 750 },
+    { id: '4', name: 'Shopping District', rating: 78, position: { lat: 37.7840, lng: -122.4272 }, radius: 600 },
   ];
 
   const handleAreaSelect = (id: string) => {
@@ -33,6 +91,10 @@ const SafetyMap = () => {
     const area = safetyAreas.find(area => area.id === id);
     if (area) {
       setSafetyRating(area.rating);
+      if (map) {
+        map.panTo(area.position);
+        map.setZoom(15);
+      }
     }
   };
 
@@ -42,28 +104,118 @@ const SafetyMap = () => {
     return 'bg-red-500';
   };
 
+  const getCircleColor = (rating: number) => {
+    if (rating >= 80) return '#22c55e';
+    if (rating >= 60) return '#eab308';
+    return '#ef4444';
+  };
+
+  // API key input handler
+  const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setMapApiKey(e.target.value);
+    localStorage.setItem('google_maps_api_key', e.target.value);
+  };
+
+  // Load API key from localStorage on component mount
+  useEffect(() => {
+    const storedKey = localStorage.getItem('google_maps_api_key');
+    if (storedKey) {
+      setMapApiKey(storedKey);
+    }
+  }, []);
+
   return (
     <div className="relative w-full h-[calc(100vh-5rem)] rounded-xl overflow-hidden">
       {/* Map Container */}
-      <div 
-        ref={mapContainerRef} 
-        className={cn(
-          "w-full h-full rounded-xl overflow-hidden transition-opacity duration-1000",
-          isLoading ? "opacity-50" : "opacity-100"
+      <div className="w-full h-full rounded-xl overflow-hidden transition-opacity duration-1000">
+        {!mapApiKey && (
+          <div className="absolute inset-0 z-50 bg-background/90 backdrop-blur-sm flex items-center justify-center">
+            <div className="glass rounded-xl p-6 w-full max-w-md">
+              <h3 className="text-lg font-medium mb-2">Google Maps API Key Required</h3>
+              <p className="text-muted-foreground text-sm mb-4">
+                To use the safety map, please enter your Google Maps API key:
+              </p>
+              <input
+                type="text"
+                value={mapApiKey}
+                onChange={handleApiKeyChange}
+                placeholder="Enter your Google Maps API key"
+                className="w-full bg-background border border-input rounded-md px-3 py-2 mb-4"
+              />
+              <p className="text-xs text-muted-foreground">
+                You can get an API key from the <a href="https://console.cloud.google.com/google/maps-apis/credentials" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Google Cloud Console</a>
+              </p>
+            </div>
+          </div>
         )}
-      >
-        {/* Placeholder for actual map */}
-        <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-          {isLoading ? (
+        
+        {isLoaded ? (
+          <GoogleMap
+            mapContainerStyle={containerStyle}
+            center={location}
+            zoom={14}
+            options={options}
+            onLoad={onLoad}
+            onUnmount={onUnmount}
+          >
+            {/* User location marker */}
+            <Marker 
+              position={location} 
+              icon={{
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 8,
+                fillColor: "#3b82f6",
+                fillOpacity: 1,
+                strokeColor: "#ffffff",
+                strokeWeight: 2,
+              }}
+            />
+            
+            {/* Safety areas visualization */}
+            {safetyAreas.map(area => (
+              <React.Fragment key={area.id}>
+                <Circle
+                  center={area.position}
+                  radius={area.radius}
+                  options={{
+                    strokeColor: getCircleColor(area.rating),
+                    strokeOpacity: 0.8,
+                    strokeWeight: 2,
+                    fillColor: getCircleColor(area.rating),
+                    fillOpacity: 0.2,
+                    clickable: true,
+                  }}
+                  onClick={() => handleAreaSelect(area.id)}
+                />
+                <Marker
+                  position={area.position}
+                  label={{
+                    text: area.rating.toString(),
+                    color: "#ffffff",
+                    fontWeight: "bold",
+                  }}
+                  icon={{
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 14,
+                    fillColor: getCircleColor(area.rating),
+                    fillOpacity: 1,
+                    strokeColor: "#ffffff",
+                    strokeWeight: 2,
+                  }}
+                  onClick={() => handleAreaSelect(area.id)}
+                />
+              </React.Fragment>
+            ))}
+          </GoogleMap>
+        ) : (
+          <div className="w-full h-full bg-gray-200 flex items-center justify-center">
             <div className="flex items-center space-x-1">
               <span className="loading-dot"></span>
               <span className="loading-dot"></span>
               <span className="loading-dot"></span>
             </div>
-          ) : (
-            <span className="text-muted-foreground">Map will be integrated here</span>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Controls Overlay */}
