@@ -1,17 +1,18 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Shield, MapPin, Users, UserCircle, ArrowRight, Bell, ShieldAlert } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
+import { Shield, MapPin, Users, UserCircle, ArrowRight, Bell, ShieldAlert, LogIn } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import Header from '@/components/Header';
 import ThreatAssessment from '@/components/ThreatAssessment';
 
 const Index = () => {
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   
   useEffect(() => {
     setIsLoaded(true);
+    setIsAuthenticated(localStorage.getItem('isAuthenticated') === 'true');
   }, []);
 
   return (
@@ -36,10 +37,21 @@ const Index = () => {
                 SafePath Guardian uses cutting-edge AI and real-time data to anticipate threats before they occur, keeping you one step ahead with preventive safety measures.
               </p>
               <div className="flex flex-wrap gap-4 animate-slide-up" style={{ animationDelay: '300ms' }}>
-                <Button className="bg-primary text-white px-6 py-3 rounded-lg hover:bg-primary/90 transition-all">
-                  <span>Get Started</span>
-                  <ArrowRight className="ml-2 w-5 h-5" />
-                </Button>
+                {isAuthenticated ? (
+                  <Button asChild className="bg-primary text-white px-6 py-3 rounded-lg hover:bg-primary/90 transition-all">
+                    <Link to="/profile">
+                      <span>Go to Profile</span>
+                      <ArrowRight className="ml-2 w-5 h-5" />
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button asChild className="bg-primary text-white px-6 py-3 rounded-lg hover:bg-primary/90 transition-all">
+                    <Link to="/login">
+                      <LogIn className="mr-2 w-5 h-5" />
+                      <span>Sign In</span>
+                    </Link>
+                  </Button>
+                )}
                 <Button variant="outline" className="px-6 py-3">
                   Learn More
                 </Button>

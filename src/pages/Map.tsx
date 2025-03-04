@@ -1,9 +1,22 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Header from '@/components/Header';
 import SafetyMap from '@/components/SafetyMap';
 
 const Map = () => {
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    // Check if user is authenticated
+    const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
+    
+    // Redirect to login if not authenticated
+    if (!isAuthenticated) {
+      navigate('/login');
+    }
+  }, [navigate]);
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
