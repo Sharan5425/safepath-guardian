@@ -1,51 +1,23 @@
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { ShieldCheck, AlertTriangle, Navigation, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { GoogleMap, useJsApiLoader, Marker, Circle } from '@react-google-maps/api';
-
-// Map container style
-const containerStyle = {
-  width: '100%',
-  height: '100%',
-  borderRadius: '0.75rem'
-};
-
-// Default center position
-const center = {
-  lat: 37.7749,
-  lng: -122.4194
-};
-
-// Map options
-const options = {
-  disableDefaultUI: true,
-  zoomControl: true,
-  mapTypeControl: false,
-  streetViewControl: false,
-  fullscreenControl: true,
-  styles: [
-    {
-      featureType: 'poi',
-      elementType: 'labels',
-      stylers: [{ visibility: 'off' }]
-    }
-  ]
-};
+import 'leaflet/dist/leaflet.css';
 
 const SafetyMap = () => {
-  const [mapApiKey, setMapApiKey] = useState<string>('');
-  const [mapReady, setMapReady] = useState(false);
+  const mapRef = useRef<HTMLDivElement>(null);
+  const [map, setMap] = useState<L.Map | null>(null);
   const [selectedArea, setSelectedArea] = useState<string | null>(null);
   const [safetyRating, setSafetyRating] = useState<number>(0);
-  const [location, setLocation] = useState(center);
-  const [map, setMap] = useState<google.maps.Map | null>(null);
-  
-  // Setup Google Maps API loader
-  const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: mapApiKey || ''
-  });
+  const [location, setLocation] = useState({ lat: 37.7749, lng: -122.4194 });
+
+  // Simulated safety areas (in a real app, these would come from API data)
+  const safetyAreas = [
+    { id: '1', name: 'Downtown', rating: 85, position: { lat: 37.7749, lng: -122.4194 }, radius: 1000 },
+    { id: '2', name: 'Riverside Park', rating: 72, position: { lat: 37.7699, lng: -122.4330 }, radius: 800 },
+    { id: '3', name: 'University Area', rating: 92, position: { lat: 37.7857, lng: -122.4071 }, radius: 750 },
+    { id: '4', name: 'Shopping District', rating: 78, position: { lat: 37.7840, lng: -122.4272 }, radius: 600 },
+  ];
 
   useEffect(() => {
     // Try to get user's location
@@ -67,24 +39,60 @@ const SafetyMap = () => {
     setSafetyRating(Math.floor(Math.random() * 100));
   }, []);
 
-  // Handle map load 
-  const onLoad = useCallback((map: google.maps.Map) => {
-    setMap(map);
-    setMapReady(true);
-  }, []);
+  useEffect(() => {
+    if (!mapRef.current || map) return;
 
-  // Handle map unmount
-  const onUnmount = useCallback(() => {
-    setMap(null);
-  }, []);
+    // Initialize Leaflet map
+    const leafletMap = L.map(mapRef.current).setView([location.lat, location.lng], 13);
+    
+    // Add OpenStreetMap tile layer
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(leafletMap);
 
-  // Simulated safety areas (in a real app, these would come from API data)
-  const safetyAreas = [
-    { id: '1', name: 'Downtown', rating: 85, position: { lat: 37.7749, lng: -122.4194 }, radius: 1000 },
-    { id: '2', name: 'Riverside Park', rating: 72, position: { lat: 37.7699, lng: -122.4330 }, radius: 800 },
-    { id: '3', name: 'University Area', rating: 92, position: { lat: 37.7857, lng: -122.4071 }, radius: 750 },
-    { id: '4', name: 'Shopping District', rating: 78, position: { lat: 37.7840, lng: -122.4272 }, radius: 600 },
-  ];
+    // Add user location marker
+    const userIcon = L.divIcon({
+      className: 'user-location-marker',
+      html: '<div class="user-dot"></div>',
+      iconSize: [20, 20],
+      iconAnchor: [10, 10]
+    });
+
+    L.marker([location.lat, location.lng], { icon: userIcon }).addTo(leafletMap);
+
+    // Add safety area circles
+    safetyAreas.forEach(area => {
+      const circleColor = getCircleColor(area.rating);
+      
+      const circle = L.circle([area.position.lat, area.position.lng], {
+        radius: area.radius,
+        color: circleColor,
+        fillColor: circleColor,
+        fillOpacity: 0.2,
+        weight: 2
+      }).addTo(leafletMap);
+
+      const safetyIcon = L.divIcon({
+        className: 'safety-marker',
+        html: `<div class="safety-dot" style="background-color: ${circleColor};">${area.rating}</div>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 14]
+      });
+
+      const marker = L.marker([area.position.lat, area.position.lng], { icon: safetyIcon }).addTo(leafletMap);
+      
+      // Add click event to circle and marker
+      circle.on('click', () => handleAreaSelect(area.id));
+      marker.on('click', () => handleAreaSelect(area.id));
+    });
+
+    setMap(leafletMap);
+
+    // Clean up on unmount
+    return () => {
+      leafletMap.remove();
+    };
+  }, [location]);
 
   const handleAreaSelect = (id: string) => {
     setSelectedArea(id);
@@ -92,8 +100,7 @@ const SafetyMap = () => {
     if (area) {
       setSafetyRating(area.rating);
       if (map) {
-        map.panTo(area.position);
-        map.setZoom(15);
+        map.setView([area.position.lat, area.position.lng], 15);
       }
     }
   };
@@ -110,112 +117,35 @@ const SafetyMap = () => {
     return '#ef4444';
   };
 
-  // API key input handler
-  const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setMapApiKey(e.target.value);
-    localStorage.setItem('google_maps_api_key', e.target.value);
-  };
-
-  // Load API key from localStorage on component mount
-  useEffect(() => {
-    const storedKey = localStorage.getItem('google_maps_api_key');
-    if (storedKey) {
-      setMapApiKey(storedKey);
-    }
-  }, []);
-
   return (
     <div className="relative w-full h-[calc(100vh-5rem)] rounded-xl overflow-hidden">
       {/* Map Container */}
       <div className="w-full h-full rounded-xl overflow-hidden transition-opacity duration-1000">
-        {!mapApiKey && (
-          <div className="absolute inset-0 z-50 bg-background/90 backdrop-blur-sm flex items-center justify-center">
-            <div className="glass rounded-xl p-6 w-full max-w-md">
-              <h3 className="text-lg font-medium mb-2">Google Maps API Key Required</h3>
-              <p className="text-muted-foreground text-sm mb-4">
-                To use the safety map, please enter your Google Maps API key:
-              </p>
-              <input
-                type="text"
-                value={mapApiKey}
-                onChange={handleApiKeyChange}
-                placeholder="Enter your Google Maps API key"
-                className="w-full bg-background border border-input rounded-md px-3 py-2 mb-4"
-              />
-              <p className="text-xs text-muted-foreground">
-                You can get an API key from the <a href="https://console.cloud.google.com/google/maps-apis/credentials" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Google Cloud Console</a>
-              </p>
-            </div>
-          </div>
-        )}
-        
-        {isLoaded ? (
-          <GoogleMap
-            mapContainerStyle={containerStyle}
-            center={location}
-            zoom={14}
-            options={options}
-            onLoad={onLoad}
-            onUnmount={onUnmount}
-          >
-            {/* User location marker */}
-            <Marker 
-              position={location} 
-              icon={{
-                path: google.maps.SymbolPath.CIRCLE,
-                scale: 8,
-                fillColor: "#3b82f6",
-                fillOpacity: 1,
-                strokeColor: "#ffffff",
-                strokeWeight: 2,
-              }}
-            />
-            
-            {/* Safety areas visualization */}
-            {safetyAreas.map(area => (
-              <React.Fragment key={area.id}>
-                <Circle
-                  center={area.position}
-                  radius={area.radius}
-                  options={{
-                    strokeColor: getCircleColor(area.rating),
-                    strokeOpacity: 0.8,
-                    strokeWeight: 2,
-                    fillColor: getCircleColor(area.rating),
-                    fillOpacity: 0.2,
-                    clickable: true,
-                  }}
-                  onClick={() => handleAreaSelect(area.id)}
-                />
-                <Marker
-                  position={area.position}
-                  label={{
-                    text: area.rating.toString(),
-                    color: "#ffffff",
-                    fontWeight: "bold",
-                  }}
-                  icon={{
-                    path: google.maps.SymbolPath.CIRCLE,
-                    scale: 14,
-                    fillColor: getCircleColor(area.rating),
-                    fillOpacity: 1,
-                    strokeColor: "#ffffff",
-                    strokeWeight: 2,
-                  }}
-                  onClick={() => handleAreaSelect(area.id)}
-                />
-              </React.Fragment>
-            ))}
-          </GoogleMap>
-        ) : (
-          <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-            <div className="flex items-center space-x-1">
-              <span className="loading-dot"></span>
-              <span className="loading-dot"></span>
-              <span className="loading-dot"></span>
-            </div>
-          </div>
-        )}
+        <div 
+          ref={mapRef} 
+          className="w-full h-full rounded-xl overflow-hidden"
+        ></div>
+        <style jsx>{`
+          .user-dot {
+            width: 20px;
+            height: 20px;
+            background-color: #3b82f6;
+            border: 2px solid white;
+            border-radius: 50%;
+          }
+          .safety-dot {
+            width: 28px;
+            height: 28px;
+            border: 2px solid white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 12px;
+          }
+        `}</style>
       </div>
 
       {/* Controls Overlay */}
