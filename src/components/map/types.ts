@@ -6,3 +6,9 @@ export interface SafetyArea {
   position: [number, number];
   radius: number;
 }
+
+export interface SearchResult {
+  id: string;
+  name: string;
+  position: [number, number];
+}
